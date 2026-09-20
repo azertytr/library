@@ -1,6 +1,8 @@
 package fr.corentin.biblioscan.ui.navigation
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -18,8 +20,16 @@ private object Routes {
 }
 
 @Composable
-fun AppNavHost() {
+fun AppNavHost(sharedLibraryUri: Uri? = null, onSharedLibraryConsumed: () -> Unit = {}) {
     val navController = rememberNavController()
+
+    // Opening a shared library file always surfaces the library screen so the
+    // imported (or refreshed) library is immediately visible.
+    LaunchedEffect(sharedLibraryUri) {
+        if (sharedLibraryUri != null) {
+            navController.navigate(Routes.LIBRARY) { launchSingleTop = true }
+        }
+    }
 
     NavHost(navController = navController, startDestination = Routes.SCAN) {
         composable(Routes.SCAN) {
@@ -28,7 +38,9 @@ fun AppNavHost() {
         composable(Routes.LIBRARY) {
             LibraryScreen(
                 onBack = { navController.popBackStack() },
-                onOpenBook = { isbn -> navController.navigate(Routes.detail(isbn)) }
+                onOpenBook = { isbn -> navController.navigate(Routes.detail(isbn)) },
+                pendingSharedLibraryUri = sharedLibraryUri,
+                onSharedLibraryConsumed = onSharedLibraryConsumed
             )
         }
         composable(

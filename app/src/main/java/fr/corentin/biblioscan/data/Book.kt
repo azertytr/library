@@ -1,19 +1,38 @@
 package fr.corentin.biblioscan.data
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
+import androidx.room.ForeignKey
+import androidx.room.Index
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /**
- * A single book in the local collection, keyed by normalized ISBN-13.
- * All fields besides [isbn] and [title] are best-effort metadata pulled
- * from an online lookup at scan time; nothing here requires network
- * access afterwards.
+ * A single book in the local collection, keyed by normalized ISBN-13
+ * within its owning library ([libraryId]) - the same ISBN can exist in
+ * several libraries. All fields besides [isbn] and [title] are
+ * best-effort metadata pulled from an online lookup at scan time;
+ * nothing here requires network access afterwards.
+ *
+ * [libraryId] is excluded from JSON export ([Transient]): a shared file
+ * carries the library's id/name once at the top level instead.
  */
-@Entity(tableName = "books")
+@Entity(
+    tableName = "books",
+    primaryKeys = ["isbn", "libraryId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = LibraryEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["libraryId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("libraryId")]
+)
 @Serializable
 data class Book(
-    @PrimaryKey val isbn: String,
+    val isbn: String,
+    @Transient val libraryId: String = DEFAULT_LIBRARY_ID,
     val title: String,
     val subtitle: String? = null,
     val authors: List<String> = emptyList(),

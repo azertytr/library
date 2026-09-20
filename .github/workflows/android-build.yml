@@ -8,6 +8,8 @@ on:
 jobs:
   build-debug-apk:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /home/runner/android-sdk
     steps:
       - uses: actions/checkout@v4
 
@@ -16,14 +18,8 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # ubuntu-latest runners ship a preinstalled Android SDK (ANDROID_HOME
-      # and sdkmanager already on PATH) - just fetch the extra components
-      # this project needs. Avoids android-actions/setup-android, which
-      # currently fails trying to install the removed legacy "tools" package.
-      - name: Install required Android SDK packages
-        run: |
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Set up Android SDK
+        run: ./scripts/setup-android-sdk.sh
 
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug

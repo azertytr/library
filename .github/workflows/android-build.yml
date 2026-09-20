@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   build-debug-apk:
     runs-on: ubuntu-latest
@@ -29,3 +32,17 @@ jobs:
           name: biblioscan-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
+
+      # Fork PRs only get a read-only GITHUB_TOKEN, so this step is skipped
+      # for them - it only runs for PRs opened from this repository itself.
+      - name: Publish debug APK as a PR release
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: pr-${{ github.event.pull_request.number }}-debug
+          name: "Debug APK - PR #${{ github.event.pull_request.number }}"
+          body: |
+            APK de debug généré automatiquement pour ${{ github.event.pull_request.html_url }}
+            (commit ${{ github.sha }}). Mis à jour à chaque nouveau push sur cette PR.
+          prerelease: true
+          files: app/build/outputs/apk/debug/app-debug.apk

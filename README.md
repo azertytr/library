@@ -5,9 +5,13 @@ Application Android qui utilise l'appareil photo pour scanner le code-barres ISB
 ## Fonctionnalités
 
 - **Scan** du code-barres ISBN (EAN-13) via CameraX + ZXing (pas de dépendance Google Play Services).
+- **2 modes de scan**, persistés entre les sessions :
+  - **Collection** : chaque scan ajoute automatiquement le livre à la bibliothèque locale.
+  - **Brocante** : chaque scan vérifie seulement si le livre est déjà possédé, sans jamais écrire dans la bibliothèque — idéal pour éviter les doublons en vide-grenier.
 - **Autocomplétion** des métadonnées (titre, auteurs, couverture, résumé...) via Google Books, avec repli sur Open Library si indisponible.
-- **Statut visuel immédiat** : ✅ vert si le livre est déjà dans la collection, ❌ rouge sinon, avec bouton d'ajout/retrait.
-- **Détection de série** best-effort à partir des métadonnées (champ série Open Library, ou motifs "Tome N" / "#N" dans le titre/sous-titre), avec regroupement automatique dans la bibliothèque.
+- **Statut visuel immédiat** : ✅ vert si le livre est déjà dans la collection, ❌ rouge sinon.
+- **Tri de la bibliothèque** par titre (avec regroupement par série), date d'ajout ou auteur, préférence mémorisée.
+- **Détection de série** best-effort à partir des métadonnées (champ série Open Library, ou motifs "Tome N" / "#N" dans le titre/sous-titre), avec regroupement automatique dans la bibliothèque (mode de tri "Titre").
 - **Stockage 100 % local** (base Room/SQLite) — aucune donnée de collection ne quitte l'appareil, aucun compte.
 - **Export / import JSON** de toute la bibliothèque via le sélecteur de fichiers système (Storage Access Framework).
 

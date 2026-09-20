@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,17 +25,21 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import fr.corentin.biblioscan.AppContainer
 import fr.corentin.biblioscan.data.Book
+import fr.corentin.biblioscan.data.LibrarySortOption
 import fr.corentin.biblioscan.ui.common.LambdaViewModelFactory
+import java.text.DateFormat
+import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(onBack: () -> Unit, onOpenBook: (String) -> Unit) {
     val context = LocalContext.current
     val viewModel: LibraryViewModel = viewModel(
-        factory = LambdaViewModelFactory { LibraryViewModel(AppContainer.repository) }
+        factory = LambdaViewModelFactory { LibraryViewModel(AppContainer.repository, AppContainer.modePreferences) }
     )
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var sortMenuExpanded by remember { mutableStateOf(false) }
 
     val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
@@ -62,6 +67,28 @@ fun LibraryScreen(onBack: () -> Unit, onOpenBook: (String) -> Unit) {
                     }
                 },
                 actions = {
+                    Box {
+                        IconButton(onClick = { sortMenuExpanded = true }) {
+                            Icon(Icons.Default.Sort, contentDescription = "Trier")
+                        }
+                        DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
+                            SortMenuItem(
+                                label = "Titre (séries groupées)",
+                                selected = state.sortOption == LibrarySortOption.TITLE,
+                                onClick = { viewModel.onSortOptionChange(LibrarySortOption.TITLE); sortMenuExpanded = false }
+                            )
+                            SortMenuItem(
+                                label = "Date d'ajout (récent d'abord)",
+                                selected = state.sortOption == LibrarySortOption.DATE_ADDED,
+                                onClick = { viewModel.onSortOptionChange(LibrarySortOption.DATE_ADDED); sortMenuExpanded = false }
+                            )
+                            SortMenuItem(
+                                label = "Auteur",
+                                selected = state.sortOption == LibrarySortOption.AUTHOR,
+                                onClick = { viewModel.onSortOptionChange(LibrarySortOption.AUTHOR); sortMenuExpanded = false }
+                            )
+                        }
+                    }
                     IconButton(onClick = { exportLauncher.launch("biblioscan-export.json") }) {
                         Icon(Icons.Default.FileUpload, contentDescription = "Exporter en JSON")
                     }
@@ -84,12 +111,12 @@ fun LibraryScreen(onBack: () -> Unit, onOpenBook: (String) -> Unit) {
 
             if (state.allBooks.isEmpty()) {
                 EmptyLibrary()
-            } else {
+            } else if (state.isGrouped) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(state.series, key = { "series-" + it.name }) { group ->
                         SeriesHeader(group.name, group.books.size)
                         group.books.forEach { book ->
-                            BookRow(book, onClick = { onOpenBook(book.isbn) })
+                            BookRow(book, sortOption = state.sortOption, onClick = { onOpenBook(book.isbn) })
                         }
                     }
                     if (state.standalone.isNotEmpty()) {
@@ -97,8 +124,14 @@ fun LibraryScreen(onBack: () -> Unit, onOpenBook: (String) -> Unit) {
                             SeriesHeader("Autres livres", state.standalone.size)
                         }
                         items(state.standalone, key = { it.isbn }) { book ->
-                            BookRow(book, onClick = { onOpenBook(book.isbn) })
+                            BookRow(book, sortOption = state.sortOption, onClick = { onOpenBook(book.isbn) })
                         }
+                    }
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(state.flatBooks, key = { it.isbn }) { book ->
+                        BookRow(book, sortOption = state.sortOption, onClick = { onOpenBook(book.isbn) })
                     }
                 }
             }
@@ -134,7 +167,15 @@ private fun SeriesHeader(name: String, count: Int) {
 }
 
 @Composable
-private fun BookRow(book: Book, onClick: () -> Unit) {
+private fun SortMenuItem(label: String, selected: Boolean, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
+        onClick = onClick
+    )
+}
+
+@Composable
+private fun BookRow(book: Book, sortOption: LibrarySortOption, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -156,6 +197,13 @@ private fun BookRow(book: Book, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
+                )
+            }
+            if (sortOption == LibrarySortOption.DATE_ADDED && book.dateAdded > 0) {
+                Text(
+                    DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(book.dateAdded)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

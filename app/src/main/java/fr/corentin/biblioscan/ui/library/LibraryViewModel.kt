@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import fr.corentin.biblioscan.data.Book
 import fr.corentin.biblioscan.data.BookRepository
+import fr.corentin.biblioscan.data.LibrarySortOption
+import fr.corentin.biblioscan.data.ModePreferences
 import fr.corentin.biblioscan.export.LibraryFileManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,18 +23,26 @@ data class LibraryUiState(
     val allBooks: List<Book> = emptyList(),
     val series: List<SeriesGroup> = emptyList(),
     val standalone: List<Book> = emptyList(),
+    val flatBooks: List<Book> = emptyList(),
+    val sortOption: LibrarySortOption = LibrarySortOption.TITLE,
     val searchQuery: String = "",
     val message: String? = null
-)
+) {
+    /** Series grouping (with series headers) only applies to the TITLE sort. */
+    val isGrouped: Boolean get() = sortOption == LibrarySortOption.TITLE
+}
 
-class LibraryViewModel(private val repository: BookRepository) : ViewModel() {
+class LibraryViewModel(
+    private val repository: BookRepository,
+    private val modePreferences: ModePreferences
+) : ViewModel() {
 
     private val searchQuery = MutableStateFlow("")
     private val message = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<LibraryUiState> = combine(
-        repository.observeAll(), searchQuery, message
-    ) { books, query, msg ->
+        repository.observeAll(), searchQuery, message, modePreferences.librarySort
+    ) { books, query, msg, sort ->
         val filtered = if (query.isBlank()) {
             books
         } else {
@@ -43,22 +53,43 @@ class LibraryViewModel(private val repository: BookRepository) : ViewModel() {
                     book.isbn.contains(query)
             }
         }
-        val (inSeries, standalone) = filtered.partition { it.seriesName != null }
-        val series = inSeries.groupBy { it.seriesName!! }
-            .toSortedMap(String.CASE_INSENSITIVE_ORDER)
-            .map { (name, books) -> SeriesGroup(name, books.sortedBy { it.seriesIndex ?: Double.MAX_VALUE }) }
 
-        LibraryUiState(
-            allBooks = books,
-            series = series,
-            standalone = standalone.sortedBy { it.title.lowercase() },
-            searchQuery = query,
-            message = msg
-        )
+        if (sort == LibrarySortOption.TITLE) {
+            val (inSeries, standalone) = filtered.partition { it.seriesName != null }
+            val series = inSeries.groupBy { it.seriesName!! }
+                .toSortedMap(String.CASE_INSENSITIVE_ORDER)
+                .map { (name, books) -> SeriesGroup(name, books.sortedBy { it.seriesIndex ?: Double.MAX_VALUE }) }
+
+            LibraryUiState(
+                allBooks = books,
+                series = series,
+                standalone = standalone.sortedBy { it.title.lowercase() },
+                sortOption = sort,
+                searchQuery = query,
+                message = msg
+            )
+        } else {
+            val flat = when (sort) {
+                LibrarySortOption.DATE_ADDED -> filtered.sortedByDescending { it.dateAdded }
+                LibrarySortOption.AUTHOR -> filtered.sortedBy { it.authors.firstOrNull()?.lowercase() ?: "" }
+                LibrarySortOption.TITLE -> filtered.sortedBy { it.title.lowercase() }
+            }
+            LibraryUiState(
+                allBooks = books,
+                flatBooks = flat,
+                sortOption = sort,
+                searchQuery = query,
+                message = msg
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LibraryUiState())
 
     fun onSearchQueryChange(query: String) {
         searchQuery.value = query
+    }
+
+    fun onSortOptionChange(sort: LibrarySortOption) {
+        modePreferences.setLibrarySort(sort)
     }
 
     fun deleteBook(book: Book) {

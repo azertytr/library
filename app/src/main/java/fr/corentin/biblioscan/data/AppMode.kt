@@ -44,8 +44,20 @@ class ModePreferences(context: Context) {
         prefs.edit().putString(KEY_SORT, sort.name).apply()
     }
 
+    /** Which [LibraryEntity] the scan screen adds to and the library screen shows. */
+    private val _activeLibraryId = MutableStateFlow(
+        prefs.getString(KEY_ACTIVE_LIBRARY, DEFAULT_LIBRARY_ID) ?: DEFAULT_LIBRARY_ID
+    )
+    val activeLibraryId: StateFlow<String> = _activeLibraryId.asStateFlow()
+
+    fun setActiveLibraryId(id: String) {
+        _activeLibraryId.value = id
+        prefs.edit().putString(KEY_ACTIVE_LIBRARY, id).apply()
+    }
+
     companion object {
         private const val KEY_MODE = "app_mode"
         private const val KEY_SORT = "library_sort"
+        private const val KEY_ACTIVE_LIBRARY = "active_library_id"
     }
 }

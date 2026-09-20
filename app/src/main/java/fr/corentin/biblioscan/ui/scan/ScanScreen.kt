@@ -41,11 +41,17 @@ fun ScanScreen(onOpenLibrary: () -> Unit) {
     val context = LocalContext.current
     val viewModel: ScanViewModel = viewModel(
         factory = LambdaViewModelFactory {
-            ScanViewModel(AppContainer.repository, AppContainer.lookupService, AppContainer.modePreferences)
+            ScanViewModel(
+                AppContainer.repository,
+                AppContainer.lookupService,
+                AppContainer.modePreferences,
+                AppContainer.libraryRepository
+            )
         }
     )
     val uiState by viewModel.uiState.collectAsState()
     val mode by viewModel.mode.collectAsState()
+    val activeLibraryName by viewModel.activeLibraryName.collectAsState()
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -65,7 +71,18 @@ fun ScanScreen(onOpenLibrary: () -> Unit) {
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text("Scanner un livre") },
+                    title = {
+                        Column {
+                            Text("Scanner un livre")
+                            if (activeLibraryName.isNotEmpty()) {
+                                Text(
+                                    activeLibraryName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
                     actions = {
                         IconButton(onClick = onOpenLibrary) {
                             Icon(Icons.Default.LibraryBooks, contentDescription = "Ma bibliothèque")

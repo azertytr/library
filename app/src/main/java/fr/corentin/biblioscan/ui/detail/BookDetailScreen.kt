@@ -24,7 +24,7 @@ import fr.corentin.biblioscan.ui.common.LambdaViewModelFactory
 fun BookDetailScreen(isbn: String, onBack: () -> Unit) {
     val viewModel: BookDetailViewModel = viewModel(
         key = isbn,
-        factory = LambdaViewModelFactory { BookDetailViewModel(AppContainer.repository, isbn) }
+        factory = LambdaViewModelFactory { BookDetailViewModel(AppContainer.repository, AppContainer.modePreferences, isbn) }
     )
     val book by viewModel.book.collectAsState()
     var showDeleteConfirm by remember { mutableStateOf(false) }

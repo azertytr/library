@@ -30,6 +30,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import fr.corentin.biblioscan.AppContainer
+import fr.corentin.biblioscan.data.AppMode
 import fr.corentin.biblioscan.data.Book
 import fr.corentin.biblioscan.ui.common.LambdaViewModelFactory
 import java.util.concurrent.Executors
@@ -39,9 +40,12 @@ import java.util.concurrent.Executors
 fun ScanScreen(onOpenLibrary: () -> Unit) {
     val context = LocalContext.current
     val viewModel: ScanViewModel = viewModel(
-        factory = LambdaViewModelFactory { ScanViewModel(AppContainer.repository, AppContainer.lookupService) }
+        factory = LambdaViewModelFactory {
+            ScanViewModel(AppContainer.repository, AppContainer.lookupService, AppContainer.modePreferences)
+        }
     )
     val uiState by viewModel.uiState.collectAsState()
+    val mode by viewModel.mode.collectAsState()
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -59,14 +63,21 @@ fun ScanScreen(onOpenLibrary: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Scanner un livre") },
-                actions = {
-                    IconButton(onClick = onOpenLibrary) {
-                        Icon(Icons.Default.LibraryBooks, contentDescription = "Ma bibliothèque")
+            Column {
+                TopAppBar(
+                    title = { Text("Scanner un livre") },
+                    actions = {
+                        IconButton(onClick = onOpenLibrary) {
+                            Icon(Icons.Default.LibraryBooks, contentDescription = "Ma bibliothèque")
+                        }
                     }
-                }
-            )
+                )
+                ModeSelector(
+                    mode = mode,
+                    onModeChange = viewModel::setMode,
+                    enabled = uiState is ScanUiState.Scanning
+                )
+            }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -85,7 +96,8 @@ fun ScanScreen(onOpenLibrary: () -> Unit) {
                 is ScanUiState.Found -> ScanResultCard(
                     book = state.book,
                     alreadyOwned = state.alreadyOwned,
-                    onAdd = { viewModel.addToCollection(state.book) },
+                    justAdded = state.justAdded,
+                    mode = mode,
                     onRemove = { viewModel.removeFromCollection(state.book) },
                     onScanNext = viewModel::resumeScanning
                 )
@@ -93,6 +105,31 @@ fun ScanScreen(onOpenLibrary: () -> Unit) {
                 is ScanUiState.Error -> ErrorCard(message = state.message, onDismiss = viewModel::resumeScanning)
                 ScanUiState.Scanning -> Unit
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModeSelector(mode: AppMode, onModeChange: (AppMode) -> Unit, enabled: Boolean) {
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        SegmentedButton(
+            selected = mode == AppMode.COLLECTION,
+            onClick = { onModeChange(AppMode.COLLECTION) },
+            enabled = enabled,
+            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+        ) {
+            Text("Collection")
+        }
+        SegmentedButton(
+            selected = mode == AppMode.BROCANTE,
+            onClick = { onModeChange(AppMode.BROCANTE) },
+            enabled = enabled,
+            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+        ) {
+            Text("Brocante")
         }
     }
 }
@@ -198,7 +235,8 @@ private fun BoxScope.LoadingCard(isbn: String) {
 private fun BoxScope.ScanResultCard(
     book: Book,
     alreadyOwned: Boolean,
-    onAdd: () -> Unit,
+    justAdded: Boolean,
+    mode: AppMode,
     onRemove: () -> Unit,
     onScanNext: () -> Unit
 ) {
@@ -225,16 +263,25 @@ private fun BoxScope.ScanResultCard(
                 }
                 OwnershipBadge(alreadyOwned)
             }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                when {
+                    mode == AppMode.BROCANTE && alreadyOwned -> "Déjà dans ta bibliothèque"
+                    mode == AppMode.BROCANTE -> "Absent de ta bibliothèque"
+                    justAdded -> "Ajouté à ta collection"
+                    else -> "Déjà dans ta collection"
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = if (alreadyOwned) Color(0xFF2E7D32) else Color(0xFFC62828)
+            )
             Spacer(Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (alreadyOwned) {
+                if (mode == AppMode.COLLECTION && alreadyOwned) {
                     OutlinedButton(onClick = onRemove, modifier = Modifier.weight(1f)) {
                         Text("Retirer de ma collection")
                     }
                 } else {
-                    Button(onClick = onAdd, modifier = Modifier.weight(1f)) {
-                        Text("Ajouter à ma collection")
-                    }
+                    Spacer(Modifier.weight(1f))
                 }
                 OutlinedButton(onClick = onScanNext) { Text("Scanner suivant") }
             }

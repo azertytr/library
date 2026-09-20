@@ -3,6 +3,7 @@ package fr.corentin.biblioscan
 import android.content.Context
 import fr.corentin.biblioscan.data.AppDatabase
 import fr.corentin.biblioscan.data.BookRepository
+import fr.corentin.biblioscan.data.ModePreferences
 import fr.corentin.biblioscan.network.BookLookupService
 
 /**
@@ -13,11 +14,15 @@ object AppContainer {
     lateinit var repository: BookRepository
         private set
 
+    lateinit var modePreferences: ModePreferences
+        private set
+
     val lookupService: BookLookupService by lazy { BookLookupService() }
 
     fun init(context: Context) {
         if (::repository.isInitialized) return
         val dao = AppDatabase.getInstance(context).bookDao()
         repository = BookRepository(dao)
+        modePreferences = ModePreferences(context.applicationContext)
     }
 }

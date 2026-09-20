@@ -30,13 +30,19 @@ class BookLookupService(
     suspend fun lookup(rawIsbn: String): LookupResult {
         val isbn13 = IsbnUtils.toIsbn13(rawIsbn)
 
+        // Google Books is tried first but its failures (rate limiting, timeouts...) must not
+        // abort the lookup - Open Library is a real fallback, not just a "no match" fallback.
+        val googleResult = runCatching { fromGoogleBooks(isbn13) }
+
         val draft = try {
-            fromGoogleBooks(isbn13) ?: fromOpenLibrary(isbn13)
+            googleResult.getOrNull() ?: fromOpenLibrary(isbn13)
         } catch (e: IOException) {
             return LookupResult.Error(e.message ?: "Erreur réseau")
         } catch (e: Exception) {
             return LookupResult.Error(e.message ?: "Erreur inattendue")
-        } ?: return LookupResult.NotFound
+        } ?: return googleResult.exceptionOrNull()?.let {
+            LookupResult.Error(it.message ?: "Erreur inattendue")
+        } ?: LookupResult.NotFound
 
         val seriesRaw = runCatching { openLibraryApi.getEdition(isbn13).series?.firstOrNull() }
             .getOrNull()
